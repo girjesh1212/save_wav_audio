@@ -1,0 +1,77 @@
+<!doctype html>
+<html>
+
+<head>
+    <title>Record Audio Test</title>
+</head>
+
+<body>
+    <h1>Audio Recording Test</h1>
+    <p>Audio recording testing</p>
+    <button id="start">Start recording...</button>
+    <button id="stop" disabled>Stop recording</button>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://www.WebRTC-Experiment.com/RecordRTC.js"></script>
+    <script>
+
+        let recorder;
+
+        const stopButton = document.getElementById("stop");
+        const startButton = document.getElementById("start");
+
+        var socket = io("http://localhost:3000");
+
+        startButton.onclick = async () => {
+            recorder = await recordAudio();
+            startButton.disabled = true;
+            stopButton.disabled = false;
+            recorder.start();
+        };
+
+        stopButton.onclick = async () => {
+            await recorder.stop();
+            startButton.disabled = false;
+            stopButton.disabled = true;
+            socket.close();
+        }
+
+        const recordAudio = () =>
+            new Promise(async resolve => {
+                let stream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
+                let recordRTC = new RecordRTCPromisesHandler(stream, {
+                    type: 'audio',
+                    mimeType: 'audio/wav',
+                    recorderType: RecordRTC.StereoAudioRecorder,
+                    disableLogs: true,
+                    timeSlice: 1000,
+                    ondataavailable: async function (blob) {
+                        const sliced = blob.slice(44, blob.size);
+                        console.log(sliced);
+                        socket.emit('audio_in', sliced);
+                    },
+                    audioBitsPerSecond: 128000,
+                    sampleRate: 44100,
+                    desiredSampRate: 44100,
+                    numberOfAudioChannels: 1,
+                });
+
+                const start = () => {
+                    recordRTC.startRecording();
+                };
+
+                const stop = async () => {
+                    await recordRTC.stopRecording();
+                    // let blob = await recordRTC.getBlob();        // Get complete audio blob
+                    // await socket.emit('audio_in', blob);         // Send the complete audio 
+                    // invokeSaveAsDialog(blob);                    // A dialog box to save audio in local system
+                };
+
+                resolve({ start, stop });
+            });
+
+        const sleep = time => new Promise(resolve => setTimeout(resolve, time));
+
+    </script>
+</body>
+
+</html>
